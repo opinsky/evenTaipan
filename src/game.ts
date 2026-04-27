@@ -1,20 +1,20 @@
 import { Display } from './display'
 import {
   GameState, BattleState, BattleResult,
-  ITEMS, LOCATIONS, PRESET_FIRMS,
+  ITEMS, LOCATIONS, FIRM_FIRST, FIRM_LAST,
   GENERIC, LI_YUEN_ID,
   createInitialState,
 } from './constants'
 import {
   rnd, fancyNum, fancyK, setPrices, statusPct, statusText,
-  portName, warehouseTotal, drawShips, formatPortHeader, formatPrices,
+  portName, warehouseTotal, drawShips, formatPortHeader,
   initBattle, battleFire, battleRun, battleThrow, battleEnemyFire,
   battleLiYuenSave, computeLiYuenAmount, computeRepairPrice, applyRepair,
   computeNewShipCost, computeNewGunCost, computeBooty,
   advanceMonth, computeFinalScore, getRating, qtyOptions, qtyFromIndex,
 } from './logic'
 
-const SPLASH = 'T  A  I  P  A  N\nChina Trade, 1860\n\nTap to begin your journey'
+const SPLASH_IMG = '/splash.png'
 
 export class Game {
   private gs: GameState
@@ -35,7 +35,7 @@ export class Game {
 
   async run(): Promise<void> {
     while (true) {
-      await this.display.showText(SPLASH)
+      await this.display.showSplash(SPLASH_IMG)
       await this.pickFirm()
       await this.pickStart()
       setPrices(this.gs)
@@ -48,9 +48,19 @@ export class Game {
   // ─── Setup ──────────────────────────────────────────────────────────────
 
   private async pickFirm(): Promise<void> {
-    const header = 'Choose your trading firm name:'
-    const idx = await this.display.showMenu(header, PRESET_FIRMS, 60)
-    this.gs.firm = idx >= 0 ? PRESET_FIRMS[idx] : PRESET_FIRMS[0]
+    const usedFirst = new Set<string>()
+    const usedLast = new Set<string>()
+    const firms: string[] = []
+    while (firms.length < 5) {
+      const first = FIRM_FIRST[rnd(FIRM_FIRST.length)]
+      const last = FIRM_LAST[rnd(FIRM_LAST.length)]
+      if (usedFirst.has(first) || usedLast.has(last)) continue
+      usedFirst.add(first)
+      usedLast.add(last)
+      firms.push(`${first} ${last}`)
+    }
+    const idx = await this.display.showMenu('Choose your trading firm:', firms, 60)
+    this.gs.firm = firms[idx >= 0 ? idx : 0]
   }
 
   private async pickStart(): Promise<void> {
@@ -522,7 +532,15 @@ export class Game {
 
   private async showPortMenu(): Promise<string> {
     const gs = this.gs
-    const header = formatPortHeader(gs) + '\n' + formatPrices(gs)
+    const header = formatPortHeader(gs)
+
+    const sidebar = [
+      portName(gs),
+      `O: $${fancyK(gs.price[0])}`,
+      `S: $${fancyK(gs.price[1])}`,
+      `A: $${fancyK(gs.price[2])}`,
+      `G: $${fancyK(gs.price[3])}`,
+    ].join('\n')
 
     const actions: Array<{ label: string; key: string }> = [
       { label: 'Buy cargo', key: 'buy' },
@@ -533,11 +551,13 @@ export class Game {
       actions.push({ label: 'Transfer cargo', key: 'transfer' })
     }
     if (gs.port === 1 && gs.cash + gs.bank >= 1_000_000) {
-      actions.push({ label: '★ Retire (Millionaire!)', key: 'retire' })
+      actions.push({ label: 'Retire (Millionaire!)', key: 'retire' })
     }
     actions.push({ label: 'Sail to new port', key: 'quit' })
 
-    const idx = await this.display.showMenu(header, actions.map(a => a.label), 168)
+    const idx = await this.display.showMenuWithSidebar(
+      header, actions.map(a => a.label), 168, sidebar,
+    )
     if (idx < 0) return 'quit'
     return actions[Math.min(idx, actions.length - 1)].key
   }
@@ -556,10 +576,11 @@ export class Game {
     if (itemIdx < 0 || itemIdx >= 4) return
 
     const price = gs.price[itemIdx]
-    const canAfford = Math.min(
-      Math.floor(gs.cash / price),
-      gs.hold >= 0 ? gs.hold : 0,
-    )
+    const freeHold = gs.hold >= 0 ? gs.hold : 0
+    const whFree = gs.port === 1 ? Math.max(0, 10000 - warehouseTotal(gs)) : 0
+    const totalSpace = freeHold + whFree
+    const cashCap = Math.floor(gs.cash / price)
+    const canAfford = Math.min(cashCap, totalSpace)
 
     if (canAfford <= 0) {
       await this.display.showText(
@@ -568,19 +589,44 @@ export class Game {
       return
     }
 
-    const opts = qtyOptions(canAfford, ITEMS[itemIdx].toLowerCase())
+    const baseOpts = qtyOptions(canAfford, ITEMS[itemIdx].toLowerCase())
+    // Show "Fill ship (N)" when buying more than the ship alone can hold
+    const showFillShip = freeHold < canAfford && freeHold > 0
+    const opts = showFillShip
+      ? [baseOpts[0], `Fill ship (${freeHold})`, ...baseOpts.slice(1)]
+      : baseOpts
+
+    const spaceDesc = whFree > 0
+      ? `Ship:${freeHold} WH:${whFree}`
+      : `Hold free: ${freeHold}`
     const header =
       `Buy ${ITEMS[itemIdx]} @ $${fancyK(price)}/unit\n` +
-      `Cash: $${fancyK(gs.cash)}  Hold free: ${gs.hold}\n` +
-      `Can afford: ${canAfford} units`
+      `Cash: $${fancyK(gs.cash)}  ${spaceDesc}\n` +
+      `Can buy: ${canAfford} units`
 
     const qIdx = await this.display.showMenu(header, opts, 75)
-    const amount = qtyFromIndex(qIdx, canAfford, opts)
+
+    let amount: number
+    if (showFillShip && qIdx === 1) {
+      amount = freeHold
+    } else {
+      const baseIdx = showFillShip && qIdx > 1 ? qIdx - 1 : qIdx
+      amount = qtyFromIndex(baseIdx, canAfford, baseOpts)
+    }
     if (amount <= 0) return
 
     gs.cash -= amount * price
     gs.hold_[itemIdx] += amount
     gs.hold -= amount
+
+    // Auto-transfer overflow into warehouse when in HK
+    if (gs.hold < 0) {
+      const toWh = Math.min(-gs.hold, gs.hold_[itemIdx], whFree)
+      gs.hold_[itemIdx] -= toWh
+      gs.hkw[itemIdx] += toWh
+      gs.hold += toWh
+    }
+
     this.emit()
   }
 
@@ -589,20 +635,27 @@ export class Game {
   private async doSell(): Promise<void> {
     const gs = this.gs
 
-    const itemOpts = ITEMS.map((it, i) =>
-      `${it}  (${gs.hold_[i]})  $${fancyK(gs.price[i])}`,
-    )
-    itemOpts.push('Cancel')
-    const itemIdx = await this.display.showMenu('Sell which item?', itemOpts, 50)
-    if (itemIdx < 0 || itemIdx >= 4) return
+    const carried = ITEMS.map((_, i) => i).filter(i => gs.hold_[i] > 0)
 
-    const inHold = gs.hold_[itemIdx]
-    if (inHold <= 0) {
-      await this.display.showText(
-        `No ${ITEMS[itemIdx]} in hold, Taipan.\n\nTap to continue.`,
-      )
+    if (carried.length === 0) {
+      await this.display.showText('Nothing to sell, Taipan.\n\nTap to continue.')
       return
     }
+
+    let itemIdx: number
+    if (carried.length === 1) {
+      itemIdx = carried[0]
+    } else {
+      const itemOpts = carried.map(i =>
+        `${ITEMS[i]}  (${gs.hold_[i]})  $${fancyK(gs.price[i])}`,
+      )
+      itemOpts.push('Cancel')
+      const sel = await this.display.showMenu('Sell which item?', itemOpts, 50)
+      if (sel < 0 || sel >= carried.length) return
+      itemIdx = carried[sel]
+    }
+
+    const inHold = gs.hold_[itemIdx]
 
     const opts = qtyOptions(inHold, ITEMS[itemIdx].toLowerCase())
     const header =
@@ -891,18 +944,18 @@ export class Game {
   private async runSeaBattle(id: number, numShips: number): Promise<BattleResult> {
     const gs = this.gs
     const bs = initBattle(numShips, id, gs.ec)
+    let roundLog = ''  // last round result shown in header
 
     while (bs.numShips > 0) {
       if (statusPct(gs) <= 0) return 'sunk'
 
-      const battleHeader = this.buildBattleHeader(bs, gs)
+      const header = this.buildBattleHeader(bs, gs, roundLog)
       const actionItems = gs.guns > 0
-        ? ['⚔ Fight', '⚡ Run', '◈ Throw Cargo']
-        : ['⚡ Run', '◈ Throw Cargo']
+        ? ['Fight', 'Run', 'Throw Cargo']
+        : ['Run', 'Throw Cargo']
 
-      const idx = await this.display.showMenu(battleHeader, actionItems, 155)
+      const idx = await this.display.showMenu(header, actionItems, 170)
 
-      // Map index to action (account for no-guns case)
       let action: 'fight' | 'run' | 'throw'
       if (gs.guns > 0) {
         if (idx === 0 || idx < 0) action = 'fight'
@@ -913,68 +966,44 @@ export class Game {
         else action = 'throw'
       }
 
+      roundLog = ''
+
       if (action === 'fight') {
-        if (gs.guns === 0) {
-          await this.display.showText('We have no guns, Taipan!!\n\nTap to continue.')
-        } else {
-          const { sunk, enemiesFled } = battleFire(gs, bs)
-          let msg = `Captain's Report\n\nWe're firing on 'em!\n`
-          if (sunk > 0) msg += `Sunk ${sunk} of the buggers!\n`
-          else msg += "Hit 'em, but no sinks.\n"
-          if (enemiesFled > 0) msg += `${enemiesFled} ran away!\n`
-          msg += `\n${bs.numShips} ships remain.\nTap to continue.`
-          await this.display.showText(msg)
-        }
+        const { sunk, enemiesFled } = battleFire(gs, bs)
+        if (sunk > 0) roundLog += `We sunk ${sunk}!`
+        else roundLog += "We hit, no sinks."
+        if (enemiesFled > 0) roundLog += ` ${enemiesFled} fled.`
       } else if (action === 'run') {
         const { escaped, lostShips } = battleRun(bs)
-        if (escaped) {
-          await this.display.showText("We got away from 'em, Taipan!\n\nTap to continue.")
-          return 'ran'
-        }
-        let msg = "Couldn't lose 'em."
-        if (lostShips > 0) msg += `\nBut escaped from ${lostShips}!`
-        msg += '\n\nTap to continue.'
-        await this.display.showText(msg)
+        if (escaped) return 'ran'
+        roundLog = lostShips > 0 ? `Escaped ${lostShips}, still chased!` : "Couldn't lose 'em!"
       } else {
-        // Throw cargo
-        const throwItems = ITEMS.map((it, i) =>
-          `${it} (${gs.hold_[i]} units)`,
-        )
+        // Throw cargo — sub-menu to pick what
+        const throwItems = ITEMS.map((it, i) => `${it} (${gs.hold_[i]})`)
         throwItems.push('ALL cargo')
         throwItems.push('Cancel')
-
-        const tIdx = await this.display.showMenu(
-          'What to throw overboard?', throwItems, 40,
-        )
-
+        const tIdx = await this.display.showMenu('Throw overboard?', throwItems, 40)
         if (tIdx >= 0 && tIdx < throwItems.length - 1) {
           const thrown = battleThrow(gs, bs, tIdx < 4 ? tIdx : 4)
-          await this.display.showText(
-            `Threw ${thrown} units overboard.\n` +
-            "Let's hope we lose 'em!\n\nTap to continue.",
-          )
+          roundLog = `Threw ${thrown} units over.`
+        } else {
+          roundLog = ''
+          continue
         }
       }
 
       if (bs.numShips <= 0) break
 
+      // Li Yuen saves (generic only)
+      if (battleLiYuenSave(bs)) return 'li_yuen_saved'
+
       // Enemy fires back
-      await this.display.showText(
-        "They're firing on us, Taipan!\n\nTap to continue.",
-      )
-
-      // Check Li Yuen saves (generic only)
-      if (battleLiYuenSave(bs)) {
-        return 'li_yuen_saved'
-      }
-
       const { lostGun, sunk } = battleEnemyFire(gs, bs)
       this.emit()
 
-      let damMsg = "We've been hit, Taipan!!\n"
-      if (lostGun) damMsg += 'A gun was destroyed!\n'
-      damMsg += `Ship: ${statusText(gs)}\n\nTap to continue.`
-      await this.display.showText(damMsg)
+      roundLog += `\nThey hit us!`
+      if (lostGun) roundLog += ' Lost a gun!'
+      roundLog += ` Ship: ${statusText(gs)}`
 
       if (sunk) return 'sunk'
     }
@@ -982,15 +1011,14 @@ export class Game {
     return 'won'
   }
 
-  private buildBattleHeader(bs: BattleState, gs: GameState): string {
-    const shipWord = bs.numShips === 1 ? 'ship' : 'ships'
+  private buildBattleHeader(bs: BattleState, gs: GameState, roundLog: string): string {
     const typeStr = bs.id === GENERIC ? 'PIRATES' : 'LI YUEN'
     const lines = [
-      `⚔ ${bs.numShips} ${typeStr} ${shipWord} ⚔`,
+      `** ${bs.numShips} ${typeStr}  Guns:${gs.guns} **`,
       drawShips(bs.numShips),
-      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-      `Guns: ${gs.guns}   Ship: ${statusText(gs)}`,
+      `Ship: ${statusText(gs)}`,
     ]
+    if (roundLog) lines.push(roundLog)
     return lines.join('\n')
   }
 
@@ -1020,12 +1048,12 @@ export class Game {
 
     const statsText =
       'FINAL STATUS\n' +
-      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n' +
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n' +
       `Net worth: $${fancyNum(net)}\n` +
       `Ship: ${gs.capacity} units, ${gs.guns} guns\n` +
       `Played: ${years} yr${years !== 1 ? 's' : ''} ${gs.month} mo\n` +
       `Score: ${score.toLocaleString()}\n` +
-      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n' +
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n' +
       `Rating: ${rating}\n\n` +
       'Tap to continue.'
 

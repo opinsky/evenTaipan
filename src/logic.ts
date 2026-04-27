@@ -284,8 +284,8 @@ export function drawShips(n: number): string {
 export function formatPortHeader(gs: GameState): string {
   const lines: string[] = []
 
-  // Line 1: port + date
-  lines.push(`${portName(gs)}  ${dateStr(gs)}`)
+  // Line 1: date
+  lines.push(dateStr(gs))
 
   // Line 2: warehouse — Hong Kong only
   if (gs.port === 1) {
@@ -305,15 +305,13 @@ export function formatPortHeader(gs: GameState): string {
 
   // Line 4: finances
   if (gs.port === 1) {
-    lines.push(
-      `$${fancyK(gs.cash)} Bnk:${fancyK(gs.bank)} Dbt:${fancyK(gs.debt)} Guns:${gs.guns}`,
-    )
+    lines.push(`$${fancyK(gs.cash)} Bnk:${fancyK(gs.bank)} Dbt:${fancyK(gs.debt)}`)
   } else {
-    lines.push(`$${fancyK(gs.cash)} Dbt:${fancyK(gs.debt)} Guns:${gs.guns}`)
+    lines.push(`$${fancyK(gs.cash)} Dbt:${fancyK(gs.debt)}`)
   }
 
-  // Line 5: ship status
-  lines.push(statusText(gs))
+  // Line 5: ship status + guns
+  lines.push(`${statusText(gs)} Guns:${gs.guns}`)
 
   return lines.join('\n')
 }

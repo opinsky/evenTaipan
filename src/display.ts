@@ -4,6 +4,8 @@ import {
   TextContainerProperty,
   ListContainerProperty,
   ListItemContainerProperty,
+  ImageContainerProperty,
+  ImageRawDataUpdate,
   CreateStartUpPageContainer,
   RebuildPageContainer,
   TextContainerUpgrade,
@@ -53,6 +55,40 @@ function makeList(
   })
 }
 
+function makeImage(
+  id: number, name: string,
+  x: number, y: number, w: number, h: number,
+): ImageContainerProperty {
+  return new ImageContainerProperty({
+    containerID: id, containerName: name,
+    xPosition: x, yPosition: y, width: w, height: h,
+  })
+}
+
+function loadImg(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = () => reject(new Error(`Failed to load ${src}`))
+    img.src = src
+  })
+}
+
+// Render image to canvas at target size and export as PNG bytes
+// (the SDK/simulator decodes image-format data, not raw pixels)
+function toPngBytes(img: HTMLImageElement, dstW: number, dstH: number): Promise<Uint8Array> {
+  const canvas = document.createElement('canvas')
+  canvas.width = dstW
+  canvas.height = dstH
+  const ctx = canvas.getContext('2d')!
+  ctx.drawImage(img, 0, 0, dstW, dstH)
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(blob => {
+      if (!blob) { reject(new Error('toBlob failed')); return }
+      blob.arrayBuffer().then(ab => resolve(new Uint8Array(ab))).catch(reject)
+    }, 'image/png')
+  })
+}
 
 export class Display {
   private bridge!: EvenAppBridge
@@ -111,6 +147,29 @@ export class Display {
     this.queue = []
   }
 
+  // Splash: 200×100 image centered at top + title text below, any tap advances
+  async showSplash(imageSrc: string): Promise<void> {
+    this.clearQueue()
+    this.currentHasTopList = false
+    const imgX = Math.floor((576 - 200) / 2)  // center horizontally
+    await this.bridge.rebuildPageContainer(new RebuildPageContainer({
+      containerTotalNum: 2,
+      imageObject: [makeImage(1, 'splash', imgX, 4, 200, 100)],
+      textObject: [makeText(2, 'splash-t', 0, 110, 576, 178, true,
+        'T  A  I  P  A  N\nChina Trade, 1860\n\nTap to begin your journey', 12)],
+    }))
+    try {
+      const img = await loadImg(imageSrc)
+      await this.bridge.updateImageRawData(new ImageRawDataUpdate({
+        containerID: 1, containerName: 'splash',
+        imageData: await toPngBytes(img, 200, 100),
+      }))
+    } catch (err) {
+      console.error('Splash image failed:', err)
+    }
+    await this.next()
+  }
+
   // Full-screen text — any input advances
   async showText(text: string): Promise<void> {
     this.clearQueue()
@@ -132,6 +191,32 @@ export class Display {
       containerTotalNum: 2,
       textObject: [makeText(ID_TOP, NAME_TOP, 0, 0, 576, topHeight, false, header)],
       listObject: [makeList(ID_BOT, NAME_BOT, 0, topHeight, 576, 288 - topHeight, items)],
+    }))
+
+    while (true) {
+      const e = await this.next()
+      if (e.type === 'list_select') return e.idx
+      if (e.type === 'double_tap') return -1
+    }
+  }
+
+  // Like showMenu but with a narrow sidebar on the right (1/5 width = 115px)
+  async showMenuWithSidebar(
+    header: string, items: string[], topHeight: number, sidebar: string,
+  ): Promise<number> {
+    this.clearQueue()
+    this.currentHasTopList = true
+    this.lastTopContent = header
+    const mainW = 461   // ~4/5 of 576
+    const sideX = mainW
+    const sideW = 576 - mainW  // 115
+    await this.bridge.rebuildPageContainer(new RebuildPageContainer({
+      containerTotalNum: 3,
+      textObject: [
+        makeText(ID_TOP, NAME_TOP, 0, 0, mainW, topHeight, false, header),
+        makeText(3, 'sidebar', sideX, 0, sideW, 288, false, sidebar, 4),
+      ],
+      listObject: [makeList(ID_BOT, NAME_BOT, 0, topHeight, mainW, 288 - topHeight, items)],
     }))
 
     while (true) {

@@ -23,10 +23,17 @@ export const BASE_PRICE = [
   [1,    10, 11, 12, 13, 14, 15, 16],
 ] as const
 
-export const PRESET_FIRMS = [
-  'Jade Dragon', 'Canton Trade', 'Pearl River',
-  'East Wind Co', 'Golden Phoenix', 'Silk Road',
-  'Dragon & Sons', 'Harbor Masters', 'Lucky Fortune', 'Rising Sun',
+export const FIRM_FIRST = [
+  'Golden', 'Jade', 'Pearl', 'Dragon', 'Phoenix',
+  'Canton', 'Orient', 'East', 'Silver', 'Imperial',
+  'Celestial', 'Lucky', 'Rising', 'Harbor', 'Pacific',
+  'Lotus', 'Crimson', 'Iron', 'Sea', 'Wind',
+]
+
+export const FIRM_LAST = [
+  'Trading Co', 'Merchants', '& Sons', 'Exports',
+  'Commerce', 'Exchange', 'Partners', 'Enterprise',
+  'Guild', 'House', 'Syndicate', 'Traders',
 ]
 
 export const GENERIC = 1
