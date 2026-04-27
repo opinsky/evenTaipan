@@ -1,0 +1,13 @@
+{
+  "package_id": "com.example.taipan",
+  "name": "Taipan Game",
+  "edition": "202601",
+  "version": "0.1.0",
+  "description": "Classic Taipan trading game for G2 glasses",
+  "author": "Taipan HUD",
+  "entrypoint": "index.html",
+  "min_app_version": "2.0.0",
+  "min_sdk_version": "0.0.7",
+  "permissions": [],
+  "supported_languages": ["en"]
+}

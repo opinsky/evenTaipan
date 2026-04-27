@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(everything-evenhub:sdk-reference)",
+      "Skill(everything-evenhub:design-guidelines)",
+      "Skill(everything-evenhub:handle-input)",
+      "Bash(npm run *)"
+    ]
+  }
+}

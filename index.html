@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Taipan</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #111111;
+      color: #ffffff;
+      font-family: 'Courier New', monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+    .container {
+      max-width: 480px;
+      width: 100%;
+      text-align: center;
+    }
+    h1 {
+      font-size: 2rem;
+      letter-spacing: 0.3em;
+      color: #FEF991;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      font-size: 0.85rem;
+      color: #8A8A8A;
+      margin-bottom: 32px;
+      letter-spacing: 0.1em;
+    }
+    .status-card {
+      background: #1A1A1A;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .status-label {
+      font-size: 0.75rem;
+      color: #8A8A8A;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 8px;
+    }
+    .status-value {
+      font-size: 1rem;
+      color: #ffffff;
+    }
+    .glasses-icon {
+      font-size: 3rem;
+      margin-bottom: 16px;
+    }
+    .instruction {
+      font-size: 0.85rem;
+      color: #8A8A8A;
+      line-height: 1.6;
+    }
+    .instruction strong {
+      color: #FEF991;
+    }
+    #game-state {
+      margin-top: 16px;
+      font-size: 0.8rem;
+      color: #8A8A8A;
+      font-family: monospace;
+      text-align: left;
+      background: #0a0a0a;
+      padding: 12px;
+      border-radius: 8px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="glasses-icon">◉</div>
+    <h1>TAIPAN</h1>
+    <p class="subtitle">China Trade, 1860</p>
+
+    <div class="status-card">
+      <p class="status-label">Game Status</p>
+      <p class="status-value" id="status">Connecting to glasses...</p>
+    </div>
+
+    <p class="instruction">
+      All gameplay runs on your <strong>G2 glasses</strong>.<br><br>
+      <strong>Swipe</strong> to navigate menus<br>
+      <strong>Tap</strong> to select<br>
+      <strong>Double-tap</strong> to exit
+    </p>
+
+    <div id="game-state"></div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
