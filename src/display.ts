@@ -155,7 +155,7 @@ export class Display {
     await this.bridge.rebuildPageContainer(new RebuildPageContainer({
       containerTotalNum: 2,
       imageObject: [makeImage(1, 'splash', imgX, 4, 200, 100)],
-      textObject: [makeText(2, 'splash-t', 0, 110, 576, 178, true,
+      textObject: [makeText(2, 'splash-t', 0, 110, 576, 174, true,
         'T  A  I  P  A  N\nChina Trade, 1860\n\nTap to begin your journey', 12)],
     }))
     try {
@@ -167,7 +167,15 @@ export class Display {
     } catch (err) {
       console.error('Splash image failed:', err)
     }
-    await this.next()
+    while (true) {
+      const e = await this.next()
+      if (e.type === 'double_tap') {
+        // Show system exit dialog; if user cancels they return to splash
+        await this.bridge.shutDownPageContainer(1)
+        continue
+      }
+      return
+    }
   }
 
   // Full-screen text — any input advances
@@ -176,7 +184,7 @@ export class Display {
     this.currentHasTopList = false
     await this.bridge.rebuildPageContainer(new RebuildPageContainer({
       containerTotalNum: 1,
-      textObject: [makeText(ID_TOP, NAME_TOP, 0, 0, 576, 288, true, text)],
+      textObject: [makeText(ID_TOP, NAME_TOP, 0, 0, 576, 284, true, text)],
     }))
     this.lastTopContent = text
     await this.next()
@@ -190,7 +198,7 @@ export class Display {
     await this.bridge.rebuildPageContainer(new RebuildPageContainer({
       containerTotalNum: 2,
       textObject: [makeText(ID_TOP, NAME_TOP, 0, 0, 576, topHeight, false, header)],
-      listObject: [makeList(ID_BOT, NAME_BOT, 0, topHeight, 576, 288 - topHeight, items)],
+      listObject: [makeList(ID_BOT, NAME_BOT, 0, topHeight, 576, 284 - topHeight, items)],
     }))
 
     while (true) {
@@ -214,9 +222,9 @@ export class Display {
       containerTotalNum: 3,
       textObject: [
         makeText(ID_TOP, NAME_TOP, 0, 0, mainW, topHeight, false, header),
-        makeText(3, 'sidebar', sideX, 0, sideW, 288, false, sidebar, 4),
+        makeText(3, 'sidebar', sideX, 0, sideW, 284, false, sidebar, 4),
       ],
-      listObject: [makeList(ID_BOT, NAME_BOT, 0, topHeight, mainW, 288 - topHeight, items)],
+      listObject: [makeList(ID_BOT, NAME_BOT, 0, topHeight, mainW, 284 - topHeight, items)],
     }))
 
     while (true) {
@@ -242,10 +250,12 @@ export class Display {
     }
   }
 
-  // Yes/No prompt — returns true for Yes
-  async askYesNo(text: string): Promise<boolean> {
-    const idx = await this.showMenu(text, ['Yes', 'No'], 200)
-    return idx === 0
+  // Yes/No prompt — returns true for Yes; pass defaultYes=false to highlight No first
+  async askYesNo(text: string, defaultYes = true): Promise<boolean> {
+    if (defaultYes) {
+      return (await this.showMenu(text, ['Yes', 'No'], 200)) === 0
+    }
+    return (await this.showMenu(text, ['No', 'Yes'], 200)) === 1
   }
 
   async showExitDialog(): Promise<void> {

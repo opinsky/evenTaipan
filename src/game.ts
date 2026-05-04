@@ -308,7 +308,7 @@ export class Game {
       `You have: $${fancyNum(gs.cash)}\n` +
       `How much to spend?`
 
-    const idx = await this.display.showMenu(header, opts, 100)
+    const idx = await this.display.showMenu(header, opts, 120)
 
     let spend = 0
     if (idx === 0) spend = Math.min(canAfford, repairPrice)
@@ -335,6 +335,7 @@ export class Game {
       'Comprador\'s Report\n\n' +
       'Do you have business with Elder\n' +
       'Brother Wu, the moneylender?',
+      false,
     )
 
     if (!wantBusiness) {
@@ -399,14 +400,19 @@ export class Game {
 
   private async doWuRepay(): Promise<void> {
     const gs = this.gs
-    const opts = qtyOptions(Math.floor(gs.cash), 'in cash')
+    const debt = Math.floor(gs.debt)
+    const cash = Math.floor(gs.cash)
+    const canClearDebt = cash >= debt
+    const max = canClearDebt ? debt : cash
+    const label = canClearDebt ? 'debt' : 'cash'
+    const opts = qtyOptions(max, label)
     const header =
       `Debt: $${fancyNum(gs.debt)}\n` +
       `Cash: $${fancyNum(gs.cash)}\n` +
       'How much to repay Elder Brother Wu?'
 
-    const idx = await this.display.showMenu(header, opts, 80)
-    const amount = qtyFromIndex(idx, Math.floor(gs.cash), opts)
+    const idx = await this.display.showMenu(header, opts, 95)
+    const amount = qtyFromIndex(idx, max, opts)
 
     if (amount > 0) {
       gs.cash -= amount
@@ -432,7 +438,7 @@ export class Game {
       '(Elder Brother lends up to 2× cash)\n' +
       'How much to borrow?'
 
-    const idx = await this.display.showMenu(header, cleanOpts, 80)
+    const idx = await this.display.showMenu(header, cleanOpts, 95)
     const amount = qtyFromIndex(idx, maxBorrow, cleanOpts)
 
     if (amount > 0) {
@@ -604,7 +610,7 @@ export class Game {
       `Cash: $${fancyK(gs.cash)}  ${spaceDesc}\n` +
       `Can buy: ${canAfford} units`
 
-    const qIdx = await this.display.showMenu(header, opts, 75)
+    const qIdx = await this.display.showMenu(header, opts, 95)
 
     let amount: number
     if (showFillShip && qIdx === 1) {
@@ -662,7 +668,7 @@ export class Game {
       `Sell ${ITEMS[itemIdx]} @ $${fancyK(gs.price[itemIdx])}/unit\n` +
       `In hold: ${inHold} units`
 
-    const qIdx = await this.display.showMenu(header, opts, 65)
+    const qIdx = await this.display.showMenu(header, opts, 70)
     const amount = qtyFromIndex(qIdx, inHold, opts)
     if (amount <= 0) return
 
@@ -682,7 +688,7 @@ export class Game {
       const depositOpts = qtyOptions(Math.floor(gs.cash), 'in cash')
       const dIdx = await this.display.showMenu(
         `Deposit cash to bank?\nCash: $${fancyNum(gs.cash)}\nBank: $${fancyNum(gs.bank)}`,
-        depositOpts, 80,
+        depositOpts, 95,
       )
       const deposit = qtyFromIndex(dIdx, Math.floor(gs.cash), depositOpts)
       if (deposit > 0) {
@@ -697,7 +703,7 @@ export class Game {
       const wdOpts = qtyOptions(Math.floor(gs.bank), 'from bank')
       const wIdx = await this.display.showMenu(
         `Withdraw from bank?\nBank: $${fancyNum(gs.bank)}\nCash: $${fancyNum(gs.cash)}`,
-        wdOpts, 80,
+        wdOpts, 95,
       )
       const withdraw = qtyFromIndex(wIdx, Math.floor(gs.bank), wdOpts)
       if (withdraw > 0) {
@@ -726,7 +732,7 @@ export class Game {
         `Ship hold free: ${gs.hold}\n` +
         'Pick item to transfer:'
 
-      const itemIdx = await this.display.showMenu(header, menuItems, 80)
+      const itemIdx = await this.display.showMenu(header, menuItems, 95)
       if (itemIdx < 0 || itemIdx >= 4) break
 
       const item = ITEMS[itemIdx]
@@ -741,7 +747,7 @@ export class Game {
       const dirItems = ['To Warehouse', 'To Ship', 'Cancel']
       const dirIdx = await this.display.showMenu(
         `Transfer ${item}:\n  Ship: ${inShip} units\n  Warehouse: ${inWh} units`,
-        dirItems, 70,
+        dirItems, 95,
       )
 
       if (dirIdx === 0 && inShip > 0) {
@@ -753,7 +759,7 @@ export class Game {
         }
         const opts = qtyOptions(maxMove, item.toLowerCase())
         const qIdx = await this.display.showMenu(
-          `Move ${item} to warehouse\nMax: ${maxMove} units`, opts, 60,
+          `Move ${item} to warehouse\nMax: ${maxMove} units`, opts, 70,
         )
         const amount = qtyFromIndex(qIdx, maxMove, opts)
         if (amount > 0) {
@@ -765,7 +771,7 @@ export class Game {
         // Warehouse → Ship
         const opts = qtyOptions(inWh, item.toLowerCase())
         const qIdx = await this.display.showMenu(
-          `Move ${item} to ship\nIn warehouse: ${inWh} units`, opts, 60,
+          `Move ${item} to ship\nIn warehouse: ${inWh} units`, opts, 70,
         )
         const amount = qtyFromIndex(qIdx, inWh, opts)
         if (amount > 0) {
@@ -796,7 +802,7 @@ export class Game {
 
     const destIdx = await this.display.showMenu(
       'Comprador\'s Report\n\nWhere shall we sail, Taipan?',
-      ports, 60,
+      ports, 95,
     )
 
     if (destIdx < 0) return false
