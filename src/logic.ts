@@ -284,8 +284,8 @@ export function drawShips(n: number): string {
 export function formatPortHeader(gs: GameState): string {
   const lines: string[] = []
 
-  // Line 1: date
-  lines.push(dateStr(gs))
+  // Line 1: port + date
+  lines.push(`${LOCATIONS[gs.port]}  ${dateStr(gs)}`)
 
   // Line 2: warehouse — Hong Kong only
   if (gs.port === 1) {
@@ -327,10 +327,8 @@ export function formatPrices(gs: GameState): string {
 export function qtyOptions(max: number, label: string): string[] {
   const opts: string[] = []
   if (max > 0) opts.push(`All (${max} ${label})`)
-  if (max >= 4) opts.push(`¾ (${Math.floor(max * 0.75)} ${label})`)
   if (max >= 2) opts.push(`½ (${Math.floor(max / 2)} ${label})`)
   if (max >= 4) opts.push(`¼ (${Math.floor(max / 4)} ${label})`)
-  if (max >= 10) opts.push(`10 ${label}`)
   if (max >= 1) opts.push(`1 ${label}`)
   opts.push('Cancel')
   return opts
@@ -340,10 +338,8 @@ export function qtyFromIndex(idx: number, max: number, opts: string[]): number {
   const label = opts[idx]
   if (!label || label === 'Cancel') return 0
   if (label.startsWith('All')) return max
-  if (label.startsWith('¾')) return Math.floor(max * 0.75)
   if (label.startsWith('½')) return Math.floor(max / 2)
   if (label.startsWith('¼')) return Math.floor(max / 4)
-  if (label.startsWith('10')) return 10
   if (label.startsWith('1 ')) return 1
   return 0
 }

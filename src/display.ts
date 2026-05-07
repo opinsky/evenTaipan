@@ -23,16 +23,24 @@ const ID_BOT = 2
 const NAME_TOP = 'top'
 const NAME_BOT = 'bot'
 
+// Shared port/sub-menu layout geometry
+const LEFT_W = 376
+const LIST_X = LEFT_W
+const LIST_W = 576 - LEFT_W  // 200
+const STATUS_H = 160          // fits 5 status lines (HK) or 4 (other ports)
+const PRICES_H = 284 - STATUS_H  // 124 — fits 4 cargo rows
+const NAMES_W = 130
+
 // Container factories
 function makeText(
   id: number, name: string,
   x: number, y: number, w: number, h: number,
-  capture: boolean, content: string, padding = 6,
+  capture: boolean, content: string, padding = 6, border = 0,
 ): TextContainerProperty {
   return new TextContainerProperty({
     containerID: id, containerName: name,
     xPosition: x, yPosition: y, width: w, height: h,
-    paddingLength: padding, borderWidth: 0,
+    paddingLength: padding, borderWidth: border,
     isEventCapture: capture ? 1 : 0,
     content,
   })
@@ -97,6 +105,9 @@ export class Display {
   private resolve: ((e: InputEvent) => void) | null = null
   private lastTopContent = ''
   private currentHasTopList = false
+  private portHeader = ''
+  private portCargoNames = ''
+  private portCargoPrices = ''
 
   async init(): Promise<void> {
     this.bridge = await waitForEvenAppBridge()
@@ -208,23 +219,52 @@ export class Display {
     }
   }
 
-  // Like showMenu but with a narrow sidebar on the right (1/5 width = 115px)
+  // Port status layout:
+  //   left col (376px): status header top | cargo names + prices bottom (bordered)
+  //   right col (200px): full-height action list
   async showMenuWithSidebar(
-    header: string, items: string[], topHeight: number, sidebar: string,
+    header: string, items: string[], cargoNames: string, cargoPrices: string,
   ): Promise<number> {
     this.clearQueue()
-    this.currentHasTopList = true
+    this.currentHasTopList = false
     this.lastTopContent = header
-    const mainW = 461   // ~4/5 of 576
-    const sideX = mainW
-    const sideW = 576 - mainW  // 115
+    this.portHeader = header
+    this.portCargoNames = cargoNames
+    this.portCargoPrices = cargoPrices
     await this.bridge.rebuildPageContainer(new RebuildPageContainer({
-      containerTotalNum: 3,
+      containerTotalNum: 4,
       textObject: [
-        makeText(ID_TOP, NAME_TOP, 0, 0, mainW, topHeight, false, header),
-        makeText(3, 'sidebar', sideX, 0, sideW, 284, false, sidebar, 4),
+        makeText(ID_TOP, NAME_TOP, 0, 0, LEFT_W, STATUS_H, false, header, 5),
+        makeText(3, 'cnames', 0, STATUS_H, NAMES_W, PRICES_H, false, cargoNames, 4),
+        makeText(4, 'cprices', NAMES_W, STATUS_H, LEFT_W - NAMES_W, PRICES_H, false, cargoPrices, 4),
       ],
-      listObject: [makeList(ID_BOT, NAME_BOT, 0, topHeight, mainW, 284 - topHeight, items)],
+      listObject: [makeList(ID_BOT, NAME_BOT, LIST_X, 0, LIST_W, 284, items)],
+    }))
+
+    while (true) {
+      const e = await this.next()
+      if (e.type === 'list_select') return e.idx
+      if (e.type === 'double_tap') return -1
+    }
+  }
+
+  // Sub-menu layout: status stays top-left, cargo info stays bottom-left (both unchanged),
+  // optional question header at top-right, interactive list below it (or full-height if topHeight=0).
+  async showMenuInRight(header: string, items: string[], topHeight = 50): Promise<number> {
+    this.clearQueue()
+    this.currentHasTopList = false
+    const textContainers = [
+      makeText(ID_TOP, NAME_TOP, 0, 0, LEFT_W, STATUS_H, false, this.portHeader, 5),
+      makeText(3, 'cnames', 0, STATUS_H, NAMES_W, PRICES_H, false, this.portCargoNames, 4),
+      makeText(4, 'cprices', NAMES_W, STATUS_H, LEFT_W - NAMES_W, PRICES_H, false, this.portCargoPrices, 4),
+    ]
+    if (topHeight > 0) {
+      textContainers.push(makeText(5, 'smhdr', LIST_X, 0, LIST_W, topHeight, false, header))
+    }
+    await this.bridge.rebuildPageContainer(new RebuildPageContainer({
+      containerTotalNum: textContainers.length + 1,
+      textObject: textContainers,
+      listObject: [makeList(ID_BOT, NAME_BOT, LIST_X, topHeight, LIST_W, 284 - topHeight, items)],
     }))
 
     while (true) {
@@ -253,9 +293,9 @@ export class Display {
   // Yes/No prompt — returns true for Yes; pass defaultYes=false to highlight No first
   async askYesNo(text: string, defaultYes = true): Promise<boolean> {
     if (defaultYes) {
-      return (await this.showMenu(text, ['Yes', 'No'], 200)) === 0
+      return (await this.showMenu(text, ['Yes', 'No'], 160)) === 0
     }
-    return (await this.showMenu(text, ['No', 'Yes'], 200)) === 1
+    return (await this.showMenu(text, ['No', 'Yes'], 160)) === 1
   }
 
   async showExitDialog(): Promise<void> {
