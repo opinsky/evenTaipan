@@ -13,7 +13,6 @@ import {
 
 type InputEvent =
   | { type: 'tap' }
-  | { type: 'double_tap' }
   | { type: 'scroll_up' }
   | { type: 'scroll_down' }
   | { type: 'list_select'; idx: number }
@@ -108,6 +107,7 @@ export class Display {
   private portHeader = ''
   private portCargoNames = ''
   private portCargoPrices = ''
+  private exitEnabled = false
 
   async init(): Promise<void> {
     this.bridge = await waitForEvenAppBridge()
@@ -126,7 +126,10 @@ export class Display {
       if (ev.sysEvent) {
         const t = ev.sysEvent.eventType ?? 0
         if (t === 0) this.push({ type: 'tap' })
-        else if (t === 3) this.push({ type: 'double_tap' })
+        else if (t === 3 && this.exitEnabled) {
+          // Canonical Even Hub exit: call directly in event callback, no await
+          this.bridge.shutDownPageContainer(1)
+        }
       }
     })
 
@@ -158,6 +161,10 @@ export class Display {
     this.queue = []
   }
 
+  setExitEnabled(enabled: boolean): void {
+    this.exitEnabled = enabled
+  }
+
   // Splash: 200×100 image centered at top + title text below, any tap advances
   async showSplash(imageSrc: string): Promise<void> {
     this.clearQueue()
@@ -167,7 +174,7 @@ export class Display {
       containerTotalNum: 2,
       imageObject: [makeImage(1, 'splash', imgX, 4, 200, 100)],
       textObject: [makeText(2, 'splash-t', 0, 110, 576, 174, true,
-        'T  A  I  P  A  N\nChina Trade, 1860\n\nTap to begin your journey', 12)],
+        'T  A  I  P  A  N\nChina Trade, 1860\n\nTap to begin\n2× tap: exit (at port)', 12)],
     }))
     try {
       const img = await loadImg(imageSrc)
@@ -178,15 +185,7 @@ export class Display {
     } catch (err) {
       console.error('Splash image failed:', err)
     }
-    while (true) {
-      const e = await this.next()
-      if (e.type === 'double_tap') {
-        // Show system exit dialog; if user cancels they return to splash
-        await this.bridge.shutDownPageContainer(1)
-        continue
-      }
-      return
-    }
+    await this.next()
   }
 
   // Full-screen text — any input advances
@@ -201,7 +200,7 @@ export class Display {
     await this.next()
   }
 
-  // Header text + scrollable list — returns selected index, -1 on double-tap
+  // Header text + scrollable list — returns selected index
   async showMenu(header: string, items: string[], topHeight = 130): Promise<number> {
     this.clearQueue()
     this.currentHasTopList = true
@@ -215,7 +214,6 @@ export class Display {
     while (true) {
       const e = await this.next()
       if (e.type === 'list_select') return e.idx
-      if (e.type === 'double_tap') return -1
     }
   }
 
@@ -244,7 +242,6 @@ export class Display {
     while (true) {
       const e = await this.next()
       if (e.type === 'list_select') return e.idx
-      if (e.type === 'double_tap') return -1
     }
   }
 
@@ -270,7 +267,6 @@ export class Display {
     while (true) {
       const e = await this.next()
       if (e.type === 'list_select') return e.idx
-      if (e.type === 'double_tap') return -1
     }
   }
 

@@ -85,6 +85,7 @@ export class Game {
 
   private async portLoop(): Promise<void> {
     while (true) {
+      this.display.setExitEnabled(true)
       await this.processPortEvents()
 
       // Trading menu loop
@@ -114,6 +115,7 @@ export class Game {
         this.emit()
       }
 
+      this.display.setExitEnabled(false)
       const gameOver = await this.doTravel()
       if (gameOver) return
     }
